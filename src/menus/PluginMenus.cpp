@@ -10,18 +10,16 @@
 #include "Project.h"
 #include "ProjectRate.h"
 #include "ProjectSnap.h"
-#include "../ProjectSettings.h"
-#include "../ProjectWindow.h"
 #include "../ProjectWindows.h"
-#include "../ProjectSelectionManager.h"
 #include "RealtimeEffectPanel.h"
 #include "SampleTrack.h"
 #include "SyncLock.h"
 #include "../toolbars/ToolManager.h"
 #include "../toolbars/SelectionBar.h"
-#include "../TrackPanelAx.h"
+#include "TrackFocus.h"
 #include "TempDirectory.h"
 #include "UndoManager.h"
+#include "Viewport.h"
 #include "CommandContext.h"
 #include "CommandManager.h"
 #include "../effects/EffectManager.h"
@@ -99,7 +97,7 @@ void OnResetConfig(const CommandContext &context)
    gPrefs->Flush();
    DoReloadPreferences(project);
 
-   ProjectWindow::OnResetWindow(context);
+   Viewport::Get(project).SetToDefaultSize();
    ToolManager::OnResetToolBars(context);
 
    // These are necessary to preserve the newly correctly laid out toolbars.

@@ -342,7 +342,7 @@ void LabelTrack::SetSelected( bool s )
          this->SharedPointer<LabelTrack>(), {}, -1, -1 });
 }
 
-TrackListHolder LabelTrack::Clone() const
+TrackListHolder LabelTrack::Clone(bool) const
 {
    assert(IsLeader());
    auto result = std::make_shared<LabelTrack>(*this, ProtectedCreationArg{});
@@ -375,6 +375,51 @@ void LabelStruct::MoveLabel( int iEdge, double fNewTime)
       selectedRegion.setTimes(fNewTime-fTimeSpan, fNewTime);
    }
    updated = true;
+}
+
+
+#include "ShuttleGui.h"
+namespace {
+
+static EnumSetting<bool> LabelStyleSetting{
+   wxT("/FileFormats/LabelStyleChoice"),
+   {
+      EnumValueSymbol{ wxT("Standard"), XXO("S&tandard") },
+      EnumValueSymbol{ wxT("Extended"), XXO("E&xtended (with frequency ranges)") },
+   },
+   0, // true
+
+   {
+      true, false,
+   },
+};
+
+void AddControls(ShuttleGui &S)
+{
+   S.StartStatic(XO("Exported Label Style:"));
+   {
+#if defined(__WXMAC__)
+      // Bug 2692: Place button group in panel so tabbing will work and,
+      // on the Mac, VoiceOver will announce as radio buttons.
+      S.StartPanel();
+#endif
+      {
+         S.StartRadioButtonGroup(LabelStyleSetting);
+         {
+            S.TieRadioButton();
+            S.TieRadioButton();
+         }
+         S.EndRadioButtonGroup();
+      }
+#if defined(__WXMAC__)
+      S.EndPanel();
+#endif
+   }
+   S.EndStatic();
+}
+
+ImportExportPrefs::RegisteredControls reg{ wxT("LabelStyle"), AddControls };
+
 }
 
 LabelStruct LabelStruct::Import(wxTextFile &file, int &index)
@@ -462,7 +507,7 @@ void LabelStruct::Export(wxTextFile &file) const
    auto f1 = selectedRegion.f1();
    if ((f0 == SelectedRegion::UndefinedFrequency &&
       f1 == SelectedRegion::UndefinedFrequency) ||
-      ImportExportPrefs::LabelStyleSetting.ReadEnum())
+      LabelStyleSetting.ReadEnum())
       return;
 
    // Write a \ character at the start of a second line,

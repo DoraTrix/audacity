@@ -18,7 +18,7 @@
 #include "Project.h"
 #include "ProjectFileIO.h"
 #include "ProjectRate.h"
-#include "../ProjectWindow.h"
+#include "../ProjectWindowBase.h"
 #include "SelectFile.h"
 #include "ShuttleGui.h"
 #include "FileNames.h"
@@ -26,7 +26,6 @@
 #include "HelpSystem.h"
 #include "../widgets/NumericTextCtrl.h"
 #include "AudacityMessageBox.h"
-#include "../widgets/VetoDialogHook.h"
 
 #include <cmath>
 #include <limits>
@@ -251,7 +250,7 @@ ContrastDialog::ContrastDialog(wxWindow * parent, wxWindowID id,
                NumericTextCtrl(FormatterContext::SampleRateContext(mProjectRate),
                          S.GetParent(), ID_FOREGROUNDSTART_T,
                          NumericConverterType_TIME(),
-                         NumericConverterFormats::HundredthsFormat(),
+                         NumericConverterFormats::HundredthsFormat().Internal(),
                          0.0,
                          options);
          }
@@ -264,7 +263,7 @@ ContrastDialog::ContrastDialog(wxWindow * parent, wxWindowID id,
                NumericTextCtrl(FormatterContext::SampleRateContext(mProjectRate),
                          S.GetParent(), ID_FOREGROUNDEND_T,
                          NumericConverterType_TIME(),
-                         NumericConverterFormats::HundredthsFormat(),
+                         NumericConverterFormats::HundredthsFormat().Internal(),
                          0.0,
                          options);
          }
@@ -285,7 +284,7 @@ ContrastDialog::ContrastDialog(wxWindow * parent, wxWindowID id,
                NumericTextCtrl(FormatterContext::SampleRateContext(mProjectRate),
                          S.GetParent(), ID_BACKGROUNDSTART_T,
                          NumericConverterType_TIME(),
-                         NumericConverterFormats::HundredthsFormat(),
+                         NumericConverterFormats::HundredthsFormat().Internal(),
                          0.0,
                          options);
          }
@@ -298,7 +297,7 @@ ContrastDialog::ContrastDialog(wxWindow * parent, wxWindowID id,
                NumericTextCtrl(FormatterContext::SampleRateContext(mProjectRate),
                          S.GetParent(), ID_BACKGROUNDEND_T,
                          NumericConverterType_TIME(),
-                         NumericConverterFormats::HundredthsFormat(),
+                         NumericConverterFormats::HundredthsFormat().Internal(),
                          0.0,
                          options);
          }
@@ -660,7 +659,7 @@ namespace {
 // Contrast window attached to each project is built on demand by:
 AttachedWindows::RegisteredFactory sContrastDialogKey{
    []( AudacityProject &parent ) -> wxWeakRef< wxWindow > {
-      auto &window = ProjectWindow::Get( parent );
+      auto &window = GetProjectFrame(parent);
       return safenew ContrastDialog(
          &window, -1, XO("Contrast Analysis (WCAG 2 compliance)"),
          wxPoint{ 150, 150 }
@@ -678,8 +677,6 @@ namespace {
          .Get< ContrastDialog >( sContrastDialogKey );
 
       contrastDialog->CentreOnParent();
-      if( VetoDialogHook::Call( contrastDialog ) )
-         return;
       contrastDialog->Show();
    }
 }

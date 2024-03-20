@@ -35,7 +35,7 @@ void TimerRecordExportDialog::Bind(wxFileName& filename,
    mSampleRate = &sampleRate;
    mChannels = &channels;
    mParameters = &parameters;
-   mExportFilePanel->Init(filename, format, sampleRate, channels, parameters);
+   mExportFilePanel->Init(filename, sampleRate, format, channels, parameters);
 }
 
 void TimerRecordExportDialog::PopulateOrExchange(ShuttleGui& S)
@@ -63,11 +63,15 @@ void TimerRecordExportDialog::PopulateOrExchange(ShuttleGui& S)
 
 void TimerRecordExportDialog::OnOK(wxCommandEvent& event)
 {
+   if(const auto parameters = mExportFilePanel->GetParameters())
+      *mParameters = std::move(*parameters);
+   else
+      return;
+
    *mFileName = wxFileName(mExportFilePanel->GetPath(), mExportFilePanel->GetFullName());
    *mFormat = mExportFilePanel->GetPlugin()->GetFormatInfo(mExportFilePanel->GetFormat()).format;
    *mSampleRate = mExportFilePanel->GetSampleRate();
    *mChannels = mExportFilePanel->GetChannels();
-   *mParameters = mExportFilePanel->GetParameters();
 
    event.Skip();
 }

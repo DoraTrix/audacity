@@ -7,12 +7,10 @@
 #include "ProjectAudioIO.h"
 #include "../ProjectAudioManager.h"
 #include "ProjectHistory.h"
-#include "../ProjectSettings.h"
 #include "../ProjectWindows.h"
-#include "../ProjectWindow.h"
 #include "../SelectUtilities.h"
 #include "../SoundActivatedRecord.h"
-#include "../TrackPanelAx.h"
+#include "TrackFocus.h"
 #include "../TrackPanel.h"
 #include "../TransportUtilities.h"
 #include "UndoManager.h"
@@ -20,6 +18,7 @@
 #include "../prefs/TracksPrefs.h"
 #include "WaveTrack.h"
 #include "ViewInfo.h"
+#include "Viewport.h"
 #include "CommandContext.h"
 #include "../toolbars/ControlToolBar.h"
 #include "../toolbars/ToolManager.h"
@@ -72,7 +71,7 @@ void DoMoveToLabel(AudacityProject &project, bool next)
 {
    auto &tracks = TrackList::Get( project );
    auto &trackFocus = TrackFocus::Get( project );
-   auto &window = ProjectWindow::Get( project );
+   auto &viewport = Viewport::Get(project);
    auto &projectAudioManager = ProjectAudioManager::Get(project);
 
    // Find the number of label tracks, and ptr to last track found
@@ -108,13 +107,13 @@ void DoMoveToLabel(AudacityProject &project, bool next)
          if (ProjectAudioIO::Get( project ).IsAudioActive()) {
             TransportUtilities::DoStopPlaying(project);
             selectedRegion = label->selectedRegion;
-            window.RedrawProject();
+            viewport.Redraw();
             TransportUtilities::DoStartPlaying(project, newDefault);
          }
          else {
             selectedRegion = label->selectedRegion;
-            window.ScrollIntoView(selectedRegion.t0());
-            window.RedrawProject();
+            viewport.ScrollIntoView(selectedRegion.t0());
+            viewport.Redraw();
          }
          /* i18n-hint:
             String is replaced by the name of a label,
@@ -425,11 +424,7 @@ void OnToggleSoundActivated(const CommandContext &WXUNUSED(context) )
 void OnTogglePlayRecording(const CommandContext &WXUNUSED(context) )
 {
    bool Duplex;
-#ifdef EXPERIMENTAL_DA
-   gPrefs->Read(wxT("/AudioIO/Duplex"), &Duplex, false);
-#else
    gPrefs->Read(wxT("/AudioIO/Duplex"), &Duplex, true);
-#endif
    gPrefs->Write(wxT("/AudioIO/Duplex"), !Duplex);
    gPrefs->Flush();
    ToolManager::ModifyAllProjectToolbarMenus();
@@ -832,13 +827,7 @@ auto TransportMenu()
                Command( wxT("Overdub"), XXO("Hear &other tracks during recording"),
                   OnTogglePlayRecording,
                   AudioIONotBusyFlag() | CanStopAudioStreamFlag(),
-                  Options{}.CheckTest( wxT("/AudioIO/Duplex"),
-#ifdef EXPERIMENTAL_DA
-                     false
-#else
-                     true
-#endif
-                  ) ),
+                  Options{}.CheckTest( wxT("/AudioIO/Duplex"), true) ),
                Command( wxT("SWPlaythrough"), XXO("Enable audible input &monitoring"),
                   OnToggleSWPlaythrough,
                   AudioIONotBusyFlag() | CanStopAudioStreamFlag(),

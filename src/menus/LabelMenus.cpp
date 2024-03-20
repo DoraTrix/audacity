@@ -7,12 +7,13 @@
 #include "Project.h"
 #include "ProjectAudioIO.h"
 #include "ProjectHistory.h"
-#include "../ProjectWindow.h"
+
 #include "../SelectUtilities.h"
 #include "SyncLock.h"
-#include "../TrackPanelAx.h"
+#include "TrackFocus.h"
 #include "../TrackPanel.h"
 #include "ViewInfo.h"
+#include "Viewport.h"
 #include "WaveTrack.h"
 #include "WaveTrackUtilities.h"
 #include "CommandContext.h"
@@ -113,7 +114,7 @@ int DoAddLabel(
 
    if (!useDialog) {
       TrackFocus::Get(project).Set(lt);
-      lt->EnsureVisible();
+      Viewport::Get(project).ShowTrack(*lt);
    }
    trackPanel.SetFocus();
 
@@ -385,7 +386,7 @@ void OnPasteNewLabel(const CommandContext &context)
    // and set focus
    if (plt) {
       TrackFocus::Get(project).Set(plt);
-      plt->EnsureVisible();
+      Viewport::Get(project).ShowTrack(*plt);
       trackPanel.SetFocus();
    }
 
@@ -622,7 +623,7 @@ void OnJoinLabels(const CommandContext &context)
       track.TypeSwitch(
          [&](WaveTrack& t) { t.Join(t0, t1, std::move(reportProgress)); });
    };
-   WaveTrackUtilities::WithStretchRenderingProgress(
+   WaveTrackUtilities::WithClipRenderingProgress(
       [&](ProgressReporter progress) {
          EditByLabel(project, tracks, selectedRegion, editfunc, progress);
       });
@@ -677,7 +678,7 @@ void OnNewLabelTrack(const CommandContext &context)
       .PushState(XO("Created new label track"), XO("New Track"));
 
    TrackFocus::Get(project).Set(track);
-   track->EnsureVisible();
+   Viewport::Get(project).ShowTrack(*track);
 }
 
 // Menu definitions

@@ -64,6 +64,8 @@ list( APPEND SOURCES
       $<$<BOOL:${${_OPT}bundle_gplv3}>:AboutDialogGPLv3Text.cpp>
       AdornedRulerPanel.cpp
       AdornedRulerPanel.h
+      AnalyzedWaveClip.cpp
+      AnalyzedWaveClip.h
       AudacityApp.cpp
       AudacityApp.h
       $<$<BOOL:${wxIS_MAC}>:AudacityApp.mm>
@@ -71,6 +73,8 @@ list( APPEND SOURCES
       AudacityFileConfig.h
       AudacityHeaders.cpp
       AudacityHeaders.h
+      AudacityMirProject.cpp
+      AudacityMirProject.h
       AudioPasteDialog.cpp
       AudioPasteDialog.h
       AutoRecoveryDialog.cpp
@@ -87,6 +91,8 @@ list( APPEND SOURCES
       CellularPanel.h
       Clipboard.cpp
       Clipboard.h
+      ClipMirAudioReader.cpp
+      ClipMirAudioReader.h
       CommonCommandFlags.cpp
       CommonCommandFlags.h
       CrashReport.cpp
@@ -128,27 +134,19 @@ list( APPEND SOURCES
       ListNavigationEnabled.h
       ListNavigationPanel.cpp
       ListNavigationPanel.h
-      Lyrics.cpp
-      Lyrics.h
-      LyricsWindow.cpp
-      LyricsWindow.h
       MenuCreator.cpp
       MenuCreator.h
-      MIDIPlay.cpp
-      MIDIPlay.h
       MixerBoard.cpp
       MixerBoard.h
+      MouseWheelHandler.cpp
       MovableControl.cpp
       MovableControl.h
-      NoteTrack.cpp
-      NoteTrack.h
       PitchName.cpp
       PitchName.h
       PluginRegistrationDialog.cpp
       PluginRegistrationDialog.h
       PluginStartupRegistration.cpp
       PluginStartupRegistration.h
-      Printing.cpp
       Profiler.cpp
       Profiler.h
       ProjectAudioManager.cpp
@@ -157,8 +155,6 @@ list( APPEND SOURCES
       ProjectFileManager.h
       ProjectManager.cpp
       ProjectManager.h
-      ProjectSelectionManager.cpp
-      ProjectSelectionManager.h
       ProjectSettings.cpp
       ProjectSettings.h
       ProjectTempoListener.cpp
@@ -173,16 +169,12 @@ list( APPEND SOURCES
       ProjectWindows.h
       RealtimeEffectPanel.cpp
       RealtimeEffectPanel.h
-      Screenshot.cpp
-      Screenshot.h
       ScrubState.cpp
       ScrubState.h
       SelectUtilities.cpp
       SelectUtilities.h
       ShuttleGetDefinition.cpp
       ShuttleGetDefinition.h
-      Snap.cpp
-      Snap.h
       SoundActivatedRecord.cpp
       SoundActivatedRecord.h
       SpectralDataDialog.cpp
@@ -223,7 +215,6 @@ list( APPEND SOURCES
       TrackPanelDrawable.cpp
       TrackPanelDrawable.h
       TrackPanelDrawingContext.h
-      TrackPanelListener.h
       TrackPanelMouseEvent.h
       TrackPanelResizeHandle.cpp
       TrackPanelResizeHandle.h
@@ -289,8 +280,6 @@ list( APPEND SOURCES
       commands/PreferenceCommands.h
       commands/ResponseQueue.cpp
       commands/ResponseQueue.h
-      commands/ScreenshotCommand.cpp
-      commands/ScreenshotCommand.h
       commands/ScriptCommandRelay.cpp
       commands/ScriptCommandRelay.h
       commands/SelectCommand.cpp
@@ -575,14 +564,6 @@ list( APPEND SOURCES
       import/ImportRaw.cpp
       import/ImportRaw.h
 
-      # Optional importers
-
-      $<$<BOOL:${USE_MIDI}>:
-         export/ExportMIDI.cpp
-         import/ImportMIDI.cpp
-         import/ImportMIDI.h
-      >
-
       # Menus
 
       menus/ClipMenus.cpp
@@ -628,8 +609,6 @@ list( APPEND SOURCES
       prefs/MidiIOPrefs.h
       prefs/ModulePrefs.cpp
       prefs/ModulePrefs.h
-      prefs/MousePrefs.cpp
-      prefs/MousePrefs.h
       prefs/PlaybackPrefs.cpp
       prefs/PlaybackPrefs.h
       prefs/PrefsDialog.cpp
@@ -671,16 +650,12 @@ list( APPEND SOURCES
       toolbars/EditToolBar.h
       toolbars/MeterToolBar.cpp
       toolbars/MeterToolBar.h
-      toolbars/ScrubbingToolBar.cpp
-      toolbars/ScrubbingToolBar.h
       toolbars/SelectionBar.cpp
       toolbars/SelectionBar.h
-      toolbars/SelectionBarListener.h
       toolbars/SnappingToolBar.cpp
       toolbars/SnappingToolBar.h
       toolbars/SpectralSelectionBar.cpp
       toolbars/SpectralSelectionBar.h
-      toolbars/SpectralSelectionBarListener.h
       toolbars/TimeSignatureToolBar.cpp
       toolbars/TimeSignatureToolBar.h
       toolbars/TimeToolBar.cpp
@@ -719,6 +694,8 @@ list( APPEND SOURCES
       tracks/playabletrack/notetrack/ui/NoteTrackButtonHandle.h
       tracks/playabletrack/notetrack/ui/NoteTrackControls.cpp
       tracks/playabletrack/notetrack/ui/NoteTrackControls.h
+      tracks/playabletrack/notetrack/ui/NoteTrackDisplayData.cpp
+      tracks/playabletrack/notetrack/ui/NoteTrackDisplayData.h
       tracks/playabletrack/notetrack/ui/NoteTrackMenuItems.cpp
       tracks/playabletrack/notetrack/ui/NoteTrackShifter.cpp
       tracks/playabletrack/notetrack/ui/NoteTrackSliderHandles.cpp
@@ -735,14 +712,26 @@ list( APPEND SOURCES
       tracks/playabletrack/ui/PlayableTrackButtonHandles.h
       tracks/playabletrack/ui/PlayableTrackControls.cpp
       tracks/playabletrack/ui/PlayableTrackControls.h
-      tracks/playabletrack/wavetrack/ui/ChangeClipSpeedDialog.cpp
-      tracks/playabletrack/wavetrack/ui/ChangeClipSpeedDialog.h
+      tracks/playabletrack/wavetrack/ui/ClipOverflowButtonHandle.cpp
+      tracks/playabletrack/wavetrack/ui/ClipOverflowButtonHandle.h
+      tracks/playabletrack/wavetrack/ui/ClipButtonId.h
+      tracks/playabletrack/wavetrack/ui/ClipParameters.cpp
+      tracks/playabletrack/wavetrack/ui/ClipParameters.h
+      tracks/playabletrack/wavetrack/ui/ClipPitchAndSpeedButtonHandle.cpp
+      tracks/playabletrack/wavetrack/ui/ClipPitchAndSpeedButtonHandle.h
       tracks/playabletrack/wavetrack/ui/CutlineHandle.cpp
       tracks/playabletrack/wavetrack/ui/CutlineHandle.h
       tracks/playabletrack/wavetrack/ui/GetWaveDisplay.cpp
       tracks/playabletrack/wavetrack/ui/GetWaveDisplay.h
+      tracks/playabletrack/wavetrack/ui/HighlitClipButtonHandle.cpp
+      tracks/playabletrack/wavetrack/ui/HighlitClipButtonHandle.h
+      tracks/playabletrack/wavetrack/ui/LowlitClipButton.cpp
+      tracks/playabletrack/wavetrack/ui/LowlitClipButton.h
+      tracks/playabletrack/wavetrack/ui/PitchAndSpeedDialog.cpp
+      tracks/playabletrack/wavetrack/ui/PitchAndSpeedDialog.h
       tracks/playabletrack/wavetrack/ui/SampleHandle.cpp
       tracks/playabletrack/wavetrack/ui/SampleHandle.h
+      tracks/playabletrack/wavetrack/ui/ShuttleGuiScopedSizer.h
       tracks/playabletrack/wavetrack/ui/SpectrumCache.cpp
       tracks/playabletrack/wavetrack/ui/SpectrumCache.h
       tracks/playabletrack/wavetrack/ui/SpectrumVRulerControls.cpp
@@ -811,6 +800,8 @@ list( APPEND SOURCES
       tracks/ui/CommonChannelView.h
       tracks/ui/CommonTrackControls.cpp
       tracks/ui/CommonTrackControls.h
+      tracks/ui/CommonTrackInfo.cpp
+      tracks/ui/CommonTrackInfo.h
       tracks/ui/CommonTrackPanelCell.cpp
       tracks/ui/CommonTrackPanelCell.h
       tracks/ui/EditCursorOverlay.cpp
@@ -910,7 +901,6 @@ list( APPEND SOURCES
       widgets/TimeFormat.h
       widgets/UnwritableLocationErrorDialog.cpp
       widgets/UnwritableLocationErrorDialog.h
-      widgets/VetoDialogHook.h
       widgets/Warning.cpp
       widgets/Warning.h
       widgets/auStaticText.cpp
@@ -1044,8 +1034,6 @@ set( LIBRARIES
    PUBLIC
       ${CMAKE_REQUIRED_LIBRARIES}
       ZLIB::ZLIB
-      $<$<BOOL:${USE_MIDI}>:portmidi::portmidi>
-      $<$<BOOL:${USE_MIDI}>:portsmf>
       $<$<BOOL:${USE_NYQUIST}>:libnyquist>
       $<$<BOOL:${USE_SBSMS}>:libsbsms>
       $<$<BOOL:${USE_SOUNDTOUCH}>:soundtouch>
@@ -1336,13 +1324,14 @@ set( AUDACITY_LIBRARIES
    lib-effects-interface
    lib-wx-init-interface
    lib-time-track-interface
-   lib-snapping-interface
    lib-audio-io-interface
    lib-stretching-sequence-interface
    lib-import-export-interface
    lib-export-ui-interface
-   lib-file-formats-interface
    lib-menus-interface
+   lib-note-track-interface
+   lib-viewport-interface
+   lib-music-information-retrieval-interface
 )
 
 if (USE_VST)
@@ -1442,6 +1431,8 @@ if( "${CMAKE_GENERATOR}" MATCHES "Xcode|Visual Studio*" )
       PATTERN "*.dSYM" EXCLUDE
       PATTERN "image-compiler" EXCLUDE
       PATTERN "image-compiler.exe" EXCLUDE
+      PATTERN "riff-test-util" EXCLUDE
+      PATTERN "riff-test-util.exe" EXCLUDE
    )
 else()
    if( CMAKE_SYSTEM_NAME MATCHES "Darwin" )

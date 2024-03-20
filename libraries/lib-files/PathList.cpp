@@ -15,6 +15,25 @@
 #include <wx/stdpaths.h>
 #include <wx/utils.h>
 
+#if HAVE_DLFCN_H && !defined(DISABLE_DLADDR)
+#  if __linux__ && !defined(_GNU_SOURCE)
+#    define _GNU_SOURCE
+#  endif
+#  include <dlfcn.h>
+#  define HAVE_GET_LIBRARY_PATH 1
+namespace
+{
+wxString GetLibraryPath()
+{
+   Dl_info info;
+   // This is a GNU extension, but it's also supported on FreeBSD, OpenBSD, macOS and Solaris.
+   if (dladdr(reinterpret_cast<const void*>(GetLibraryPath), &info))
+      return info.dli_fname;
+   return {};
+}
+}
+#endif
+
 void FileNames::InitializePathList()
 {
    auto &standardPaths = wxStandardPaths::Get();
@@ -58,12 +77,8 @@ void FileNames::InitializePathList()
          wxT("/var/tmp/audacity-%s"), wxGetUserId() ) );
    }
 
-// DA: Path env variable.
-#ifndef EXPERIMENTAL_DA
    wxString pathVar = wxGetenv(wxT("AUDACITY_PATH"));
-#else
-   wxString pathVar = wxGetenv(wxT("DARKAUDACITY_PATH"));
-#endif
+
    if (!pathVar.empty())
       FileNames::AddMultiPathsToPathList(pathVar, audacityPathList);
    FileNames::AddUniquePathToPathList(::wxGetCwd(), audacityPathList);
@@ -85,6 +100,12 @@ void FileNames::InitializePathList()
       FileNames::AddUniquePathToPathList(progParentPath + L"/lib/audacity", audacityPathList);
       FileNames::AddUniquePathToPathList(progParentPath + L"/lib", audacityPathList);
    }
+
+#if HAVE_GET_LIBRARY_PATH
+   const wxString thisLibPath = GetLibraryPath();
+   if (!thisLibPath.IsEmpty())
+      FileNames::AddUniquePathToPathList(wxPathOnly(thisLibPath), audacityPathList);
+#endif
 #endif
 
    FileNames::AddUniquePathToPathList(FileNames::DataDir(), audacityPathList);

@@ -50,8 +50,8 @@
 #include "ImageManipulation.h"
 #include "Project.h"
 #include "../ProjectSettings.h"
-#include "../ProjectWindow.h"
 #include "../tracks/ui/Scrubbing.h"
+#include "Viewport.h"
 
 #include "../widgets/AButton.h"
 
@@ -93,8 +93,8 @@ ToolsToolBar::ToolsToolBar( AudacityProject &project )
    else
       mCurrentTool = selectTool;
 
-   project.Bind(EVT_PROJECT_SETTINGS_CHANGE,
-      &ToolsToolBar::OnToolChanged, this);
+   mSubscription = ProjectSettings::Get(project)
+      .Subscribe(*this, &ToolsToolBar::OnToolChanged);
 }
 
 ToolsToolBar::~ToolsToolBar()
@@ -222,13 +222,12 @@ void ToolsToolBar::OnTool(wxCommandEvent & evt)
       pButton->PushDown();
 }
 
-void ToolsToolBar::OnToolChanged(wxCommandEvent &evt)
+void ToolsToolBar::OnToolChanged(ProjectSettingsEvent evt)
 {
-   evt.Skip(); // Let other listeners hear the event too
-   if (evt.GetInt() != ProjectSettings::ChangedTool)
+   if (evt.type != ProjectSettingsEvent::ChangedTool)
       return;
    DoToolChanged();
-   ProjectWindow::Get( mProject ).RedrawProject();
+   Viewport::Get(mProject).Redraw();
 }
 
 void ToolsToolBar::DoToolChanged()

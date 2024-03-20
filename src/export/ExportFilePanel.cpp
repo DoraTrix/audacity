@@ -6,6 +6,7 @@
 #include <wx/choice.h>
 #include <wx/textctrl.h>
 #include <wx/radiobut.h>
+#include <wx/regex.h>
 #include <wx/wupdlock.h>
 
 #include "Export.h"
@@ -225,17 +226,15 @@ void ExportFilePanel::PopulateOrExchange(ShuttleGui& S)
 }
 
 void ExportFilePanel::Init(const wxFileName& filename,
-                           const wxString& format,
                            int sampleRate,
+                           const wxString& format,
                            int channels,
                            const ExportProcessor::Parameters& parameters,
                            const MixerOptions::Downmix* mixerSpec)
 {
    mFolder->SetValue(filename.GetPath());
    mFullName->SetValue(filename.GetFullName());
-   mSampleRate = sampleRate == 0
-      ? ProjectRate::Get(mProject).GetRate()
-      : sampleRate;
+   mSampleRate = sampleRate;
 
    auto selectedFormatIndex = 0;
    if(!format.empty())
@@ -343,10 +342,11 @@ int ExportFilePanel::GetSampleRate() const
    return mSampleRate;
 }
 
-ExportProcessor::Parameters ExportFilePanel::GetParameters() const
+std::optional<ExportProcessor::Parameters> ExportFilePanel::GetParameters() const
 {
-   mOptionsHandler->TransferDataFromEditor();
-   return mOptionsHandler->GetParameters();
+   if(mOptionsHandler->TransferDataFromEditor())
+      return { mOptionsHandler->GetParameters() };
+   return std::nullopt;
 }
 
 int ExportFilePanel::GetChannels() const
@@ -372,23 +372,36 @@ void ExportFilePanel::ValidateAndFixExt()
 
    wxFileName filename;
    filename.SetFullName(mFullName->GetValue());
+   const auto desiredExt = filename.GetExt().Trim();
 
-   //Remove extra whitespaces
-   auto desiredExt = filename.GetExt().Trim().Trim(false);
-
-   auto it = std::find_if(
-      formatInfo.extensions.begin(),
-      formatInfo.extensions.end(),
-      // if typed extension uses different case (e.g. MP3 instead of mp3)
-      // we'll reset the file extension to one provided by FormatInfo
-      [&](const auto& ext) { return desiredExt.IsSameAs(ext, false); });
-
-   if(it == formatInfo.extensions.end())
-      it = formatInfo.extensions.begin();
-
-   if(!it->empty() && !it->IsSameAs(filename.GetExt()))
+   //See https://github.com/audacity/audacity/issues/5823
+   //check if extension is valid, i.e. does not contain whitespace characters.
+   //Otherwise everything after '.'(if present) is considered to be a part of name.
+   if(wxRegEx{R"(^[^ ]+$)"}.Matches(desiredExt))
    {
-      filename.SetExt(*it);
+      auto it = std::find_if(
+         formatInfo.extensions.begin(),
+         formatInfo.extensions.end(),
+         // if typed extension uses different case (e.g. MP3 instead of mp3)
+         // we'll reset the file extension to one provided by FormatInfo
+         [&](const auto& ext) { return desiredExt.IsSameAs(ext, false); });
+
+      if(it == formatInfo.extensions.end())
+         it = formatInfo.extensions.begin();
+
+      if(!it->empty() && !it->IsSameAs(filename.GetExt()))
+      {
+         filename.SetExt(*it);
+         mFullName->SetValue(filename.GetFullName());
+      }
+   }
+   else if(!formatInfo.extensions.front().empty())
+   {
+      auto fullname = filename.GetFullName();
+      if(!fullname.EndsWith("."))
+         fullname.Append(".");
+      fullname.Append(formatInfo.extensions.front());
+      filename.SetFullName(fullname);
       mFullName->SetValue(filename.GetFullName());
    }
 }
@@ -500,9 +513,8 @@ void ExportFilePanel::ChangeFormat(int index)
 
       mSelectedPlugin = plugin;
       mSelectedFormatIndex = formatIndex;
-      
-      auto formatInfo = plugin->GetFormatInfo(formatIndex);
-      UpdateFileNameExt(formatInfo.extensions[0]);
+
+      ValidateAndFixExt();
 
       mAudioOptionsPanel->SetSizer(nullptr);
       mAudioOptionsPanel->DestroyChildren();
@@ -511,6 +523,7 @@ void ExportFilePanel::ChangeFormat(int index)
       mOptionsHandler = std::make_unique<ExportOptionsHandler>(S, *plugin, formatIndex);
       mOptionsChangeSubscription = mOptionsHandler->Subscribe(*this, &ExportFilePanel::OnOptionsHandlerEvent);
 
+      const auto formatInfo = plugin->GetFormatInfo(formatIndex);
       UpdateMaxChannels(formatInfo.maxChannels);
       
       UpdateSampleRateList();
@@ -532,23 +545,12 @@ void ExportFilePanel::OnOptionsHandlerEvent(const ExportOptionsHandlerEvent &e)
       break;
    case ExportOptionsHandlerEvent::FormatInfoChange:
       {
-         auto formatInfo = mSelectedPlugin->GetFormatInfo(mSelectedFormatIndex);
-         UpdateFileNameExt(formatInfo.extensions[0]);
+         const auto formatInfo = mSelectedPlugin->GetFormatInfo(mSelectedFormatIndex);
+         ValidateAndFixExt();
          UpdateMaxChannels(formatInfo.maxChannels);
       } break;
    }
    
-}
-
-void ExportFilePanel::UpdateFileNameExt(const wxString& ext)
-{
-   if(!ext.empty())
-   {
-      wxFileName filename;
-      filename.SetFullName(mFullName->GetValue());
-      filename.SetExt(ext.BeforeFirst(' ').Lower());
-      mFullName->SetValue(filename.GetFullName());
-   }
 }
 
 void ExportFilePanel::UpdateMaxChannels(unsigned maxChannels)
@@ -581,16 +583,20 @@ void ExportFilePanel::UpdateMaxChannels(unsigned maxChannels)
 void ExportFilePanel::UpdateSampleRateList()
 {
    auto availableRates = mOptionsHandler->GetSampleRateList();
-   
+   std::sort(availableRates.begin(), availableRates.end());
+
    const auto* rates = availableRates.empty() ? &DefaultRates : &availableRates;
    
    mRates->Clear();
    
    void* clientData;
-   const auto projectRate = static_cast<int>(ProjectRate::Get(mProject).GetRate());
    int customRate = mSampleRate;
    int selectedItemIndex = 0;
-   int preferredItemIndex = 0;
+   //Prefer lowest possible sample rate that is not less than mSampleRate.
+   //Initialize with highest value, so that if all available rates are less
+   //than mSampleRate then we will choose highest rate
+   int preferredRate = rates->back();
+   int preferredItemIndex = rates->size() - 1;
    for(auto rate : *rates)
    {
       *reinterpret_cast<int*>(&clientData) = rate;
@@ -603,9 +609,13 @@ void ExportFilePanel::UpdateSampleRateList()
          customRate = 0;
          selectedItemIndex = itemIndex;
       }
-      if(rate <= projectRate)
+      if(rate >= mSampleRate && rate < preferredRate)
+      {
          preferredItemIndex = itemIndex;
+         preferredRate = rate;
+      }
    }
+   
    if(rates == &DefaultRates)
    {
       if(customRate != 0)
@@ -621,12 +631,6 @@ void ExportFilePanel::UpdateSampleRateList()
    else if(customRate != 0)//sample rate not in the list
    {
       auto selectedRate = (*rates)[preferredItemIndex];
-      if (selectedRate < customRate)
-      {
-         if ((preferredItemIndex + 1) < rates->size())
-            selectedRate = (*rates)[++preferredItemIndex];
-      }
-
       mSampleRate = selectedRate;
       selectedItemIndex = preferredItemIndex;
    }

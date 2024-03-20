@@ -14,6 +14,8 @@
 #include "StaffPadTimeAndPitch.h"
 
 #include <cassert>
+#include <cmath>
+#include <functional>
 
 namespace
 {
@@ -22,6 +24,9 @@ GetStretchingParameters(const ClipInterface& clip)
 {
    TimeAndPitchInterface::Parameters params;
    params.timeRatio = clip.GetStretchRatio();
+   params.pitchRatio = std::pow(2., clip.GetCentShift() / 1200.);
+   params.preserveFormants =
+      clip.GetPitchAndSpeedPreset() == PitchAndSpeedPreset::OptimizeForVoice;
    return params;
 }
 
@@ -35,19 +40,32 @@ GetTotalNumSamplesToProduce(const ClipInterface& clip, double durationToDiscard)
 } // namespace
 
 ClipSegment::ClipSegment(
-   const ClipInterface& clip, double durationToDiscard,
-   PlaybackDirection direction)
+   ClipInterface& clip, double durationToDiscard, PlaybackDirection direction)
     : mTotalNumSamplesToProduce { GetTotalNumSamplesToProduce(
          clip, durationToDiscard) }
     , mSource { clip, durationToDiscard, direction }
     , mStretcher { std::make_unique<StaffPadTimeAndPitch>(
          clip.GetRate(), clip.GetWidth(), mSource,
          GetStretchingParameters(clip)) }
+    , mOnSemitoneShiftChangeSubscription { clip.SubscribeToCentShiftChange(
+         [this](int cents) {
+            std::lock_guard<std::mutex> lock(mStretcherMutex);
+            mStretcher->OnCentShiftChange(cents);
+         }) }
+    , mOnFormantPreservationChangeSubscription {
+       clip.SubscribeToPitchAndSpeedPresetChange(
+          [this](PitchAndSpeedPreset preset) {
+             std::lock_guard<std::mutex> lock(mStretcherMutex);
+             mStretcher->OnFormantPreservationChange(
+                preset == PitchAndSpeedPreset::OptimizeForVoice);
+          })
+    }
 {
 }
 
-size_t ClipSegment::GetFloats(float *const *buffers, size_t numSamples)
+size_t ClipSegment::GetFloats(float* const* buffers, size_t numSamples)
 {
+   std::lock_guard<std::mutex> lock(mStretcherMutex);
    const auto numSamplesToProduce = limitSampleBufferSize(
       numSamples, mTotalNumSamplesToProduce - mTotalNumSamplesProduced);
    mStretcher->GetSamples(buffers, numSamplesToProduce);

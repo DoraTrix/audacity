@@ -37,6 +37,7 @@
 #include <wx/datectrl.h>
 #include <wx/datetime.h>
 #include <wx/dynlib.h> //<! For windows.h
+#include <wx/frame.h>
 
 #include "AudioIO.h"
 #include "SelectFile.h"
@@ -46,8 +47,7 @@
 #include "ProjectFileManager.h"
 #include "ProjectManager.h"
 #include "ProjectRate.h"
-#include "ProjectWindow.h"
-#include "ProjectSettings.h"
+#include "ProjectWindows.h"
 #include "Project.h"
 #include "Prefs.h"
 #include "Track.h"
@@ -214,6 +214,7 @@ TimerRecordDialog::TimerRecordDialog(
    }
 
    m_iAutoExportSampleRate = ProjectRate::Get(mProject).GetRate();
+   m_iAutoExportChannels = AudioIORecordChannels.Read();
 
    ShuttleGui S(this, eIsCreating);
    this->PopulateOrExchange(S);
@@ -1176,7 +1177,6 @@ ProgressResult TimerRecordDialog::PreActionDelay(int iActionIndex, TimerRecordCo
 #include "Project.h"
 #include "ProjectHistory.h"
 #include "ProjectSettings.h"
-#include "ProjectWindow.h"
 #include "UndoManager.h"
 
 namespace {
@@ -1185,7 +1185,7 @@ void OnTimerRecord(const CommandContext &context)
    auto &project = context.project;
    const auto &settings = ProjectSettings::Get( project );
    auto &undoManager = UndoManager::Get( project );
-   auto &window = ProjectWindow::Get( project );
+   auto &window = GetProjectFrame(project);
 
    // MY: Due to improvements in how Timer Recording saves and/or exports
    // it is now safer to disable Timer Recording when there is more than

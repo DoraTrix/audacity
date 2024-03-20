@@ -41,15 +41,15 @@ public:
     * \brief Initializes panel with export settings provided as arguments.
     * Call is required.
     * \param filename Default output filename
+    * \param sampleRate Export sample rate > 0
     * \param format Export format string identifier (see FormatInfo::format)
-    * \param sampleRate Pass 0(default) to initialize with project sample rate
     * \param channels Pass 0(default) to choose automatically depending on project tracks
     * \param parameters Pass empty(default) array to initialize with plugin defaults 
     * \param mixerSpec Try use custom channel mapping, `channels` argument will be igonred
     */
    void Init(const wxFileName& filename,
+             int sampleRate,
              const wxString& format = wxEmptyString,
-             int sampleRate = 0,
              int channels = 0,
              const ExportProcessor::Parameters& parameters = {},
              const MixerOptions::Downmix* mixerSpec = nullptr);
@@ -63,7 +63,9 @@ public:
    const ExportPlugin* GetPlugin() const;
    int GetFormat() const;
    int GetSampleRate() const;
-   ExportProcessor::Parameters GetParameters() const;
+
+   ///@return May return std::nullopt if plugin isn't properly configured
+   std::optional<ExportProcessor::Parameters> GetParameters() const;
    int GetChannels() const;
 
    MixerOptions::Downmix* GetMixerSpec() const;
@@ -86,7 +88,6 @@ private:
    void OnOptionsHandlerEvent(const ExportOptionsHandlerEvent& e);
    
    void UpdateSampleRateList();
-   void UpdateFileNameExt(const wxString& ext);
    void UpdateMaxChannels(unsigned maxChannels);
 
    AudacityProject& mProject;

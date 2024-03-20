@@ -9,13 +9,11 @@
 #include "ProjectHistory.h"
 #include "ProjectRate.h"
 #include "ProjectSnap.h"
-#include "../ProjectSelectionManager.h"
-#include "../ProjectSettings.h"
-#include "../ProjectWindow.h"
 #include "../ProjectWindows.h"
 #include "../SelectUtilities.h"
 #include "SyncLock.h"
 #include "../TrackPanel.h"
+#include "Viewport.h"
 #include "WaveClip.h"
 #include "WaveTrack.h"
 #include "../LabelTrack.h"
@@ -216,18 +214,17 @@ void MoveWhenAudioInactive
    auto &tracks = TrackList::Get(project);
    auto &ruler = AdornedRulerPanel::Get(project);
    const auto &settings = ProjectSnap::Get(project);
-   auto &window = ProjectWindow::Get(project);
+   auto &viewport = Viewport::Get(project);
 
    // If TIME_UNIT_SECONDS, snap-to will be off.
    auto snapMode = settings.GetSnapMode();
-   const double t0 = viewInfo.selectedRegion.t0();
 
    // Move the cursor
    // Already in cursor mode?
-   if( viewInfo.selectedRegion.isPoint() )
+   if (viewInfo.selectedRegion.isPoint())
    {
-      double newT = OffsetTime(project,
-         t0, seekStep, timeUnit, snapMode);
+      double newT = OffsetTime(
+         project, viewInfo.selectedRegion.t0(), seekStep, timeUnit, snapMode);
       // constrain.
       newT = std::max(0.0, newT);
       // Move
@@ -243,15 +240,28 @@ void MoveWhenAudioInactive
    else
    {
       // Transition to cursor mode.
-      if( seekStep < 0 )
+      constexpr auto maySwapBoundaries = false;
+      if (seekStep < 0)
+      {
+         if (snapMode != SnapMode::SNAP_OFF)
+            viewInfo.selectedRegion.setT0(
+               settings.SnapTime(viewInfo.selectedRegion.t0()).time,
+               maySwapBoundaries);
          viewInfo.selectedRegion.collapseToT0();
+      }
       else
+      {
+         if (snapMode != SnapMode::SNAP_OFF)
+            viewInfo.selectedRegion.setT1(
+               settings.SnapTime(viewInfo.selectedRegion.t1()).time,
+               maySwapBoundaries);
          viewInfo.selectedRegion.collapseToT1();
+      }
       trackPanel.Refresh(false);
    }
 
    // Make sure NEW position is in view
-   window.ScrollIntoView(viewInfo.selectedRegion.t1());
+   viewport.ScrollIntoView(viewInfo.selectedRegion.t1());
    return;
 }
 
@@ -262,7 +272,7 @@ SelectionOperation operation)
    auto &viewInfo = ViewInfo::Get(project);
    auto &tracks = TrackList::Get(project);
    const auto &settings = ProjectSnap::Get(project);
-   auto &window = ProjectWindow::Get(project);
+   auto &viewport = Viewport::Get(project);
 
    if (operation == CURSOR_MOVE)
    {
@@ -296,7 +306,7 @@ SelectionOperation operation)
       viewInfo.selectedRegion.setT1( newT );
 
    // Ensure it is visible
-   window.ScrollIntoView(newT);
+   viewport.ScrollIntoView(newT);
 }
 
 // Handle small cursor and play head movements
@@ -358,7 +368,7 @@ void DoBoundaryMove(AudacityProject &project, int step, SeekInfo &info)
 {
    auto &viewInfo = ViewInfo::Get(project);
    auto &tracks = TrackList::Get(project);
-   auto &window = ProjectWindow::Get(project);
+   auto &viewport = Viewport::Get(project);
 
    // step is negative, then is moving left.  step positive, moving right.
    // Move the left/right selection boundary, to expand the selection
@@ -407,7 +417,7 @@ void DoBoundaryMove(AudacityProject &project, int step, SeekInfo &info)
       viewInfo.selectedRegion.setT1( newT );
 
    // Ensure it is visible
-   window.ScrollIntoView(newT);
+   viewport.ScrollIntoView(newT);
 
    ProjectHistory::Get( project ).ModifyState(false);
 }
@@ -571,14 +581,14 @@ void OnSelectionRestore(const CommandContext &context)
 {
    auto &project = context.project;
    auto &selectedRegion = ViewInfo::Get( project ).selectedRegion;
-   auto &window = ProjectWindow::Get(project);
+   auto &viewport = Viewport::Get(project);
 
    if ((mRegionSave.t0() == 0.0) &&
        (mRegionSave.t1() == 0.0))
       return;
 
    selectedRegion = mRegionSave;
-   window.ScrollIntoView(selectedRegion.t0());
+   viewport.ScrollIntoView(selectedRegion.t0());
 
    ProjectHistory::Get( project ).ModifyState(false);
 }
@@ -631,21 +641,23 @@ void OnZeroCrossing(const CommandContext &context)
    // it if any stretched clip is involved.
    const auto projectRate = ProjectRate(project).GetRate();
    const auto searchWindowDuration = GetWindowSize(projectRate) / projectRate;
-   const auto wouldSearchStretchedClip =
+   const auto wouldSearchClipWithPitchOrSpeed =
       [searchWindowDuration](const WaveTrack& track, double t) {
          const auto clips = track.GetClipsIntersecting(
             t - searchWindowDuration / 2, t + searchWindowDuration / 2);
          return std::any_of(
             clips.begin(), clips.end(),
             [](const std::shared_ptr<const WaveClip>& clip) {
-               return !clip->StretchRatioEquals(1);
+               return clip->HasPitchOrSpeed();
             });
       };
    const auto selected = tracks.Selected<const WaveTrack>();
    if (std::any_of(
           selected.begin(), selected.end(), [&](const WaveTrack* track) {
-             return wouldSearchStretchedClip(*track, selectedRegion.t0()) ||
-                    wouldSearchStretchedClip(*track, selectedRegion.t1());
+             return wouldSearchClipWithPitchOrSpeed(
+                       *track, selectedRegion.t0()) ||
+                    wouldSearchClipWithPitchOrSpeed(
+                       *track, selectedRegion.t1());
           }))
    {
       using namespace BasicUI;
@@ -689,16 +701,16 @@ void OnSnapToPrior(const CommandContext &context)
 void OnSelToStart(const CommandContext &context)
 {
    auto &project = context.project;
-   auto &window = ProjectWindow::Get( project );
-   window.Rewind(true);
+   auto &viewport = Viewport::Get(project);
+   viewport.ScrollToStart(true);
    ProjectHistory::Get( project ).ModifyState(false);
 }
 
 void OnSelToEnd(const CommandContext &context)
 {
    auto &project = context.project;
-   auto &window = ProjectWindow::Get( project );
-   window.SkipEnd(true);
+   auto &viewport = Viewport::Get(project);
+   viewport.ScrollToEnd(true);
    ProjectHistory::Get( project ).ModifyState(false);
 }
 
@@ -747,22 +759,22 @@ void OnCursorSelStart(const CommandContext &context)
 {
    auto &project = context.project;
    auto &selectedRegion = ViewInfo::Get( project ).selectedRegion;
-   auto &window = ProjectWindow::Get( project );
+   auto &viewport = Viewport::Get(project);
 
    selectedRegion.collapseToT0();
    ProjectHistory::Get( project ).ModifyState(false);
-   window.ScrollIntoView(selectedRegion.t0());
+   viewport.ScrollIntoView(selectedRegion.t0());
 }
 
 void OnCursorSelEnd(const CommandContext &context)
 {
    auto &project = context.project;
    auto &selectedRegion = ViewInfo::Get( project ).selectedRegion;
-   auto &window = ProjectWindow::Get( project );
+   auto &viewport = Viewport::Get(project);
 
    selectedRegion.collapseToT1();
    ProjectHistory::Get( project ).ModifyState(false);
-   window.ScrollIntoView(selectedRegion.t1());
+   viewport.ScrollIntoView(selectedRegion.t1());
 }
 
 void OnCursorTrackStart(const CommandContext &context)
@@ -770,7 +782,7 @@ void OnCursorTrackStart(const CommandContext &context)
    auto &project = context.project;
    auto &tracks = TrackList::Get(project);
    auto &selectedRegion = ViewInfo::Get(project).selectedRegion;
-   auto &window = ProjectWindow::Get(project);
+   auto &viewport = Viewport::Get(project);
 
    double kWayOverToRight = std::numeric_limits<double>::max();
 
@@ -788,7 +800,7 @@ void OnCursorTrackStart(const CommandContext &context)
 
    selectedRegion.setTimes(minOffset, minOffset);
    ProjectHistory::Get(project).ModifyState(false);
-   window.ScrollIntoView(selectedRegion.t0());
+   viewport.ScrollIntoView(selectedRegion.t0());
 }
 
 void OnCursorTrackEnd(const CommandContext &context)
@@ -796,7 +808,7 @@ void OnCursorTrackEnd(const CommandContext &context)
    auto &project = context.project;
    auto &tracks = TrackList::Get(project);
    auto &selectedRegion = ViewInfo::Get(project).selectedRegion;
-   auto &window = ProjectWindow::Get(project);
+   auto &viewport = Viewport::Get(project);
 
    double kWayOverToLeft = std::numeric_limits<double>::lowest();
 
@@ -814,7 +826,7 @@ void OnCursorTrackEnd(const CommandContext &context)
 
    selectedRegion.setTimes(maxEndOffset, maxEndOffset);
    ProjectHistory::Get(project).ModifyState(false);
-   window.ScrollIntoView(selectedRegion.t1());
+   viewport.ScrollIntoView(selectedRegion.t1());
 }
 
 void OnSkipStart(const CommandContext &context)

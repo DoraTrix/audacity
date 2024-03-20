@@ -16,7 +16,6 @@
 
 #include "Export.h"
 #include "ExportUtils.h"
-#include "ProjectSettings.h"
 #include "WaveTrack.h"
 #include "LabelTrack.h"
 #include "Mix.h"
@@ -34,13 +33,13 @@
 #include <wx/event.h>
 
 #include "ShuttleGui.h"
-#include "ProjectWindow.h"
 #include "AudacityMessageBox.h"
 #include "Theme.h"
 #include "HelpSystem.h"
 #include "TagsEditor.h"
 #include "ExportFilePanel.h"
 #include "ExportProgressUI.h"
+#include "ImportExport.h"
 #include "WindowAccessible.h"
 
 #if wxUSE_ACCESSIBILITY
@@ -54,7 +53,7 @@ ChoiceSetting ExportAudioExportRange { L"/ExportAudioDialog/ExportRange",
    {
       { "project", XO("Entire &Project") },
       { "split", XO("M&ultiple Files") },
-      { "selection", XO("Curren&t selection") }
+      { "selection", XO("Curren&t Selection") }
       
    },
    0, //project
@@ -76,8 +75,6 @@ ChoiceSetting ExportAudioSplitNamePolicy { L"/ExportAudioDialog/SplitNamePolicy"
    },
    0
 };
-
-IntSetting ExportAudioSampleRate { L"/ExportAudioDialog/SampleRate", 0 }; // use project rate until overwritten
 
 BoolSetting ExportAudioIncludeAudioBeforeFirstLabel { L"/ExportAudioDialog/IncludeAudioBeforeFirstLabel", false };
 
@@ -169,14 +166,19 @@ ExportAudioDialog::ExportAudioDialog(wxWindow* parent,
    else
       filename.SetName(defaultName);
 
-   int sampleRate{};
-   ExportAudioSampleRate.Read(&sampleRate);
+   auto sampleRate = ImportExport::Get(project).GetPreferredExportRate();
+   if(sampleRate == ImportExport::InvalidRate)
+   {
+      auto& tracks = TrackList::Get(project);
+      for(const auto track : tracks.Any<WaveTrack>())
+         sampleRate = std::max(sampleRate, track->GetRate());
+   }
 
    wxString format = defaultFormat;
    if(format.empty())
       ExportAudioDefaultFormat.Read(&format);
 
-   mExportOptionsPanel->Init(filename, format, sampleRate);
+   mExportOptionsPanel->Init(filename, sampleRate, format);
 
    auto& tracks = TrackList::Get(mProject);
    const auto labelTracks = tracks.Any<LabelTrack>();
@@ -229,6 +231,7 @@ ExportAudioDialog::ExportAudioDialog(wxWindow* parent,
 
    Layout();
    Fit();
+   Center();
 }
 
 ExportAudioDialog::~ExportAudioDialog() = default;
@@ -463,6 +466,8 @@ void ExportAudioDialog::OnExport(wxCommandEvent &event)
       return;
    auto selectedFormat = mExportOptionsPanel->GetFormat();
    auto parameters = mExportOptionsPanel->GetParameters();
+   if(!parameters.has_value())
+      return;
 
    const auto path = mExportOptionsPanel->GetPath();
 
@@ -487,9 +492,9 @@ void ExportAudioDialog::OnExport(wxCommandEvent &event)
       UpdateExportSettings();
 
       if(mSplitByLabels->GetValue())
-         result = DoExportSplitByLabels(*selectedPlugin, selectedFormat, parameters, exportedFiles);
+         result = DoExportSplitByLabels(*selectedPlugin, selectedFormat, *parameters, exportedFiles);
       else if(mSplitByTracks->GetValue())
-         result = DoExportSplitByTracks(*selectedPlugin, selectedFormat, parameters, exportedFiles);
+         result = DoExportSplitByTracks(*selectedPlugin, selectedFormat, *parameters, exportedFiles);
       
       auto msg = (result == ExportResult::Success
          ? XO("Successfully exported the following %lld file(s).")
@@ -533,7 +538,7 @@ void ExportAudioDialog::OnExport(wxCommandEvent &event)
       ExportTaskBuilder builder;
       builder.SetFileName(filename)
          .SetPlugin(selectedPlugin, selectedFormat)
-         .SetParameters(parameters)
+         .SetParameters(*parameters)
          .SetSampleRate(mExportOptionsPanel->GetSampleRate());
       
       const auto& viewInfo = ViewInfo::Get(mProject);
@@ -608,9 +613,9 @@ void ExportAudioDialog::OnExport(wxCommandEvent &event)
    
    if(result == ExportResult::Success || result == ExportResult::Stopped)
    {
-      ExportAudioSampleRate.Write(mExportOptionsPanel->GetSampleRate());
+      ImportExport::Get(mProject).SetPreferredExportRate(mExportOptionsPanel->GetSampleRate());
+
       ExportAudioDefaultFormat.Write(selectedPlugin->GetFormatInfo(selectedFormat).format);
-      ExportAudioSampleRate.Write(mExportOptionsPanel->GetSampleRate());
       ExportAudioDefaultPath.Write(mExportOptionsPanel->GetPath());
 
       ShuttleGui S(this, eIsSavingToPrefs);
@@ -814,9 +819,7 @@ void ExportAudioDialog::UpdateTrackExportSettings(const ExportPlugin& plugin, in
       setting.t0 = skipSilenceAtBeginning ? tr->GetStartTime() : 0;
       setting.t1 = tr->GetEndTime();
 
-      // number of export channels?
-      // It's 1 only for a center-panned mono track
-      setting.channels = (IsMono(*tr) && tr->GetPan() == 0.0) ? 1 : 2;
+      setting.channels = mExportOptionsPanel->GetChannels();
       // Get name and title
       title = tr->GetName();
       if( title.empty() )
